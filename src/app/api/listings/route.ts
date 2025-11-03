@@ -14,10 +14,10 @@ import {
   QueryParamsSchema,
 } from '@/features/listings/constants/schema';
 import { buildListingQuery } from '@/features/listings/utils/query-builder';
+import { reorderFeaturedOngoing } from '@/features/listings/utils/reorderFeaturedOngoing';
 
 export async function GET(request: NextRequest) {
   try {
-    // const userIdFromCookie = request.cookies.get('user-id-hint')?.value;
     const session = await getUserSession(await headers());
 
     const { searchParams } = new URL(request.url);
@@ -39,9 +39,11 @@ export async function GET(request: NextRequest) {
       skills: JsonValue;
     } | null = null;
 
-    if (session.data?.userId) {
+    const userId = session.data?.userId;
+
+    if (userId) {
       user = await prisma.user.findUnique({
-        where: { id: session.data.userId },
+        where: { id: userId },
         select: {
           id: true,
           isTalentFilled: true,
@@ -71,9 +73,12 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(listings, {
+    const reorderedListings = reorderFeaturedOngoing(listings);
+
+    return NextResponse.json(reorderedListings, {
       headers: {
         'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
+        Vary: 'Cookie',
       },
     });
   } catch (error) {
